@@ -36,6 +36,11 @@ Also supported:
 - `MUX_TEST_PRIMARY`, `MUX_TEST_BACKUP`
 - `APPLE_BIPBOP_PRIMARY`, `APPLE_BIPBOP_BACKUP`
 
+Default live sports sources currently wired in code:
+
+- Soccer default: beIN SPORTS XTRA (`https://bein-xtra-bein.amagi.tv/playlist.m3u8`)
+- Basketball default: SportsGrid Live (`https://sportsgrid-tribal.amagi.tv/playlist.m3u8`)
+
 ### 3. Run locally
 
 Terminal A:

@@ -38,28 +38,28 @@ export const channels: Channel[] = [
   },
   {
     id: "soccer-fast",
-    name: "Soccer Live-Style",
+    name: "beIN SPORTS XTRA",
     sport: "Soccer",
     primary: fromEnv(
       "SOCCER_PRIMARY",
-      "https://test-streams.mux.dev/test_001/stream.m3u8",
+      "https://bein-xtra-bein.amagi.tv/playlist.m3u8",
     ),
     backup: fromEnv(
       "SOCCER_BACKUP",
-      "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "https://mainstreammedia-worldoffreesportsintl-rakuten.amagi.tv/playlist.m3u8",
     ),
   },
   {
     id: "basketball-fast",
-    name: "Basketball Live-Style",
+    name: "SportsGrid Live",
     sport: "Basketball",
     primary: fromEnv(
       "BASKETBALL_PRIMARY",
-      "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8",
+      "https://sportsgrid-tribal.amagi.tv/playlist.m3u8",
     ),
     backup: fromEnv(
       "BASKETBALL_BACKUP",
-      "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+      "https://mainstreammedia-worldoffreesportsintl-rakuten.amagi.tv/playlist.m3u8",
     ),
   },
 ];
