@@ -23,7 +23,15 @@ export const handleChannelPlaylist = async (
 
   const upstream = healthState.activeUrl(channel.id) ?? channel.primary;
   try {
-    const response = await request(upstream);
+    const response = await request(upstream, {
+      headersTimeout: 6000,
+      bodyTimeout: 6000,
+    });
+    if (response.statusCode >= 400) {
+      healthState.markFailure(channel.id);
+      return reply.code(502).send("upstream manifest error");
+    }
+
     const text = await response.body.text();
     const rewritten = rewriteManifest(
       text,
@@ -52,7 +60,14 @@ export const handleNestedPlaylist = async (
 
   const upstream = dec(req.params.url);
   try {
-    const response = await request(upstream);
+    const response = await request(upstream, {
+      headersTimeout: 6000,
+      bodyTimeout: 6000,
+    });
+    if (response.statusCode >= 400) {
+      return reply.code(502).send("upstream nested playlist error");
+    }
+
     const text = await response.body.text();
     const rewritten = rewriteManifest(
       text,
@@ -85,7 +100,15 @@ export const handleSegment = async (
 
   try {
     const startedAt = Date.now();
-    const response = await request(upstream);
+    const response = await request(upstream, {
+      headersTimeout: 6000,
+      bodyTimeout: 10_000,
+    });
+    if (response.statusCode >= 400) {
+      healthState.markFailure(req.params.id);
+      return reply.code(502).send("segment upstream error");
+    }
+
     const body = Buffer.from(await response.body.arrayBuffer());
     const contentType =
       (response.headers["content-type"] as string | undefined) ?? "video/mp2t";
@@ -95,7 +118,7 @@ export const handleSegment = async (
 
     return reply
       .header("content-type", contentType)
-      .header("cache-control", "public, max-age=6")
+      .header("cache-control", "public, max-age=3")
       .header("x-cache", "MISS")
       .send(body);
   } catch {

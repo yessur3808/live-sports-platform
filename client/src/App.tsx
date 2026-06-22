@@ -42,6 +42,9 @@ export const App = () => {
     [],
   );
 
+  const activeChannel = channels.find((channel) => channel.id === active);
+  const activeHealth = active ? health[active] : undefined;
+
   const breakSource = () => {
     if (!active) return;
     return fetch(`/debug/break/${active}`, { method: "POST" });
@@ -49,7 +52,11 @@ export const App = () => {
 
   return (
     <Box sx={{ minHeight: "100vh", p: { xs: 2, md: 4 } }}>
-      <AppHeader />
+      <AppHeader
+        activeChannelName={activeChannel?.name}
+        usingBackup={activeHealth?.usingBackup}
+        activeLatencyMs={activeHealth?.lastLatency}
+      />
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 8 }}>

@@ -1,5 +1,5 @@
 import { channels } from "../config/channels.js";
-import { probeChannelManifest } from "./probe.js";
+import { checkManifestHealth, probeChannelManifest } from "./probe.js";
 import { healthState } from "./store.js";
 
 export const startHealthMonitor = (intervalMs = 5000): void => {
@@ -11,6 +11,19 @@ export const startHealthMonitor = (intervalMs = 5000): void => {
       if (activeUrl) {
         void probeChannelManifest(channel.id, activeUrl);
       }
+
+      const status = healthState.snapshot()[channel.id];
+      if (!status?.usingBackup) {
+        continue;
+      }
+
+      void checkManifestHealth(channel.primary).then((isPrimaryHealthy) => {
+        if (isPrimaryHealthy) {
+          healthState.markPrimaryRecoverySuccess(channel.id);
+        } else {
+          healthState.markPrimaryRecoveryFailure(channel.id);
+        }
+      });
     }
   }, intervalMs);
 };

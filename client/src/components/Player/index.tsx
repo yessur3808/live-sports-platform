@@ -9,6 +9,7 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
   const videoElementRef = useRef<HTMLVideoElement>(null);
   const hlsInstanceRef = useRef<Hls | null>(null);
   const startupStartTimeRef = useRef<number>(0);
+  const rebufferCountRef = useRef<number>(0);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [lastChannelId, setLastChannelId] = useState(channelId);
 
@@ -38,43 +39,67 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
     if (!channelId || !videoElement) return;
     const streamUrl = `/proxy/${channelId}/playlist.m3u8`;
     startupStartTimeRef.current = performance.now();
+    rebufferCountRef.current = 0;
+    onStats?.({ rebuffers: 0, startup: undefined });
+    setPlaybackError(null);
+
+    if (hlsInstanceRef.current) {
+      hlsInstanceRef.current.destroy();
+      hlsInstanceRef.current = null;
+    }
 
     if (canUseNativeHls) {
       videoElement.src = streamUrl;
       videoElement.play().catch(() => {});
-      return;
+      const onWaiting = () => {
+        rebufferCountRef.current += 1;
+        onStats?.({ rebuffers: rebufferCountRef.current });
+      };
+      videoElement.addEventListener("waiting", onWaiting);
+      return () => {
+        videoElement.removeEventListener("waiting", onWaiting);
+        videoElement.pause();
+        videoElement.removeAttribute("src");
+        videoElement.load();
+      };
     }
 
     if (!canUseHlsJs) return;
 
-    if (!hlsInstanceRef.current) {
-      hlsInstanceRef.current = new Hls({
-        lowLatencyMode: true,
-        enableWorker: true,
-        backBufferLength: 30,
-        maxBufferLength: 20,
-        maxMaxBufferLength: 40,
-        liveSyncDurationCount: 3,
-        abrEwmaDefaultEstimate: 800_000,
-        startLevel: -1,
-        capLevelToPlayerSize: true,
-      });
-      attachHlsEventHandlers({
-        hlsInstance: hlsInstanceRef.current,
-        videoElement,
-        startupStartTimeRef,
-        onStats,
-        setPlaybackError,
-      });
-    }
+    const hlsInstance = new Hls({
+      lowLatencyMode: true,
+      enableWorker: true,
+      backBufferLength: 20,
+      maxBufferLength: 14,
+      maxMaxBufferLength: 24,
+      liveSyncDurationCount: 2,
+      liveMaxLatencyDurationCount: 6,
+      abrEwmaDefaultEstimate: 1_200_000,
+      startLevel: -1,
+      capLevelToPlayerSize: true,
+      fragLoadingMaxRetry: 5,
+      manifestLoadingMaxRetry: 4,
+      levelLoadingMaxRetry: 4,
+    });
+    hlsInstanceRef.current = hlsInstance;
+    attachHlsEventHandlers({
+      hlsInstance,
+      videoElement,
+      startupStartTimeRef,
+      onStats,
+      setPlaybackError,
+    });
 
-    const hlsInstance = hlsInstanceRef.current;
     hlsInstance.loadSource(streamUrl);
     hlsInstance.attachMedia(videoElement);
 
     return () => {
       try {
-        hlsInstance.stopLoad();
+        hlsInstance.destroy();
+        hlsInstanceRef.current = null;
+        videoElement.pause();
+        videoElement.removeAttribute("src");
+        videoElement.load();
       } catch {
         /* noop */
       }

@@ -9,6 +9,7 @@ const createInitialStatus = (primaryUrl: string): ChannelStatus => {
     active: primaryUrl,
     usingBackup: false,
     failures: 0,
+    consecutiveSuccesses: 0,
     lastLatency: 0,
     healthy: true,
     lastSeen: 0,
@@ -50,6 +51,7 @@ export const healthState = {
 
     status.healthy = true;
     status.failures = 0;
+    status.consecutiveSuccesses = 0;
     status.lastSeen = Date.now();
   },
   markFailure(id: string): void {
@@ -59,6 +61,7 @@ export const healthState = {
     }
 
     status.failures += 1;
+    status.consecutiveSuccesses = 0;
     if (status.failures >= 3 && !status.usingBackup) {
       const channel = findChannel(id);
       if (channel?.backup) {
@@ -68,5 +71,36 @@ export const healthState = {
         console.log(`[failover] ${id} -> backup`);
       }
     }
+  },
+  markPrimaryRecoverySuccess(id: string): void {
+    const status = statusByChannel.get(id);
+    if (!status?.usingBackup) {
+      return;
+    }
+
+    status.consecutiveSuccesses += 1;
+    if (status.consecutiveSuccesses < 4) {
+      return;
+    }
+
+    const channel = findChannel(id);
+    if (!channel?.primary) {
+      return;
+    }
+
+    status.active = channel.primary;
+    status.usingBackup = false;
+    status.failures = 0;
+    status.healthy = true;
+    status.consecutiveSuccesses = 0;
+    console.log(`[failback] ${id} -> primary`);
+  },
+  markPrimaryRecoveryFailure(id: string): void {
+    const status = statusByChannel.get(id);
+    if (!status?.usingBackup) {
+      return;
+    }
+
+    status.consecutiveSuccesses = 0;
   },
 };

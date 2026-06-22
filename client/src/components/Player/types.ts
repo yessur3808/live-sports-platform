@@ -4,6 +4,8 @@ export interface PlayerStats {
   resolution?: string | null;
   latency?: string | null;
   dropped?: number | null;
+  rebuffers?: number;
+  level?: string | null;
   startup?: string;
 }
 

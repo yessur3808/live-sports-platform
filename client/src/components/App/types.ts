@@ -7,6 +7,8 @@ export interface Channel {
 export interface ChannelHealth {
   healthy?: boolean;
   usingBackup?: boolean;
+  lastLatency?: number;
+  failures?: number;
 }
 
 export type HealthByChannel = Record<string, ChannelHealth>;

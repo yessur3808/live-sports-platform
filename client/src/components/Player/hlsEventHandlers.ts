@@ -17,6 +17,7 @@ export const attachHlsEventHandlers = ({
   setPlaybackError,
 }: AttachHlsEventHandlersOptions) => {
   let networkRetryCount = 0;
+  let rebufferCount = 0;
 
   hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
     videoElement.play().catch(() => {});
@@ -32,6 +33,11 @@ export const attachHlsEventHandlers = ({
   });
 
   hlsInstance.on(Hls.Events.ERROR, (_event, errorData) => {
+    if (errorData.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+      rebufferCount += 1;
+      onStats?.({ rebuffers: rebufferCount });
+    }
+
     if (!errorData.fatal) return;
 
     switch (errorData.type) {
@@ -44,6 +50,7 @@ export const attachHlsEventHandlers = ({
           setTimeout(() => hlsInstance.startLoad(), retryDelayMs);
         } else {
           setPlaybackError("Source unreachable after retries");
+          hlsInstance.stopLoad();
         }
         break;
 
@@ -54,7 +61,7 @@ export const attachHlsEventHandlers = ({
 
       default:
         setPlaybackError("Fatal error");
-        hlsInstance.destroy();
+        hlsInstance.stopLoad();
     }
   });
 

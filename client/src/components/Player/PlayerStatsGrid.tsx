@@ -1,5 +1,13 @@
 import type { ReactNode } from "react";
-import { Activity, Clock3, Film, Gauge, Timer, Waves } from "lucide-react";
+import {
+  Activity,
+  Clock3,
+  Film,
+  Gauge,
+  RefreshCw,
+  Timer,
+  Waves,
+} from "lucide-react";
 import { Box, Card, CardContent, Grid, Typography } from "@mui/material";
 import type { PlayerStats } from "./types";
 
@@ -31,6 +39,11 @@ const getStatCards = (stats: PlayerStats): StatCardData[] => {
       value: stats.resolution || "—",
     },
     {
+      label: "Level",
+      icon: <RefreshCw size={16} />,
+      value: stats.level || "—",
+    },
+    {
       label: "Buffer",
       icon: <Clock3 size={16} />,
       value: stats.buffer ? `${stats.buffer}s` : "—",
@@ -45,6 +58,11 @@ const getStatCards = (stats: PlayerStats): StatCardData[] => {
       icon: <Activity size={16} />,
       value: stats.dropped ?? "—",
     },
+    {
+      label: "Rebuffers",
+      icon: <Activity size={16} />,
+      value: stats.rebuffers ?? 0,
+    },
   ];
 };
 
@@ -54,7 +72,7 @@ export const PlayerStatsGrid = ({ stats }: PlayerStatsGridProps) => {
   return (
     <Grid container spacing={1.5}>
       {statCards.map((statCard) => (
-        <Grid size={{ xs: 6, sm: 4, md: 2 }} key={statCard.label}>
+        <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2 }} key={statCard.label}>
           <Card variant="outlined" sx={{ height: "100%" }}>
             <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
               <Box

@@ -25,6 +25,13 @@ export const emitPlaybackStats = ({
       ? hlsInstance.levels[hlsInstance.currentLevel]
       : undefined;
 
+  const levelLabel =
+    hlsInstance?.currentLevel === -1
+      ? "auto"
+      : activeLevel
+        ? `${activeLevel.height}p`
+        : null;
+
   const playbackQuality = videoElement.getVideoPlaybackQuality?.();
 
   onStats({
@@ -33,6 +40,7 @@ export const emitPlaybackStats = ({
     resolution: activeLevel
       ? `${activeLevel.width}x${activeLevel.height}`
       : null,
+    level: levelLabel,
     latency: hlsInstance?.latency ? hlsInstance.latency.toFixed(1) : null,
     dropped: playbackQuality ? playbackQuality.droppedVideoFrames : null,
   });
