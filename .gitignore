@@ -1,5 +1,9 @@
 
-cache
+**/.cache/
+/.parcel-cache/
+/.eslintcache
+/client/.vite/
+/server/.tsbuildinfo
 
 
 # Dependencies
