@@ -1,13 +1,11 @@
-import { request } from "undici";
 import { healthState } from "./store.js";
 
 export const checkManifestHealth = async (url: string): Promise<boolean> => {
   try {
-    const response = await request(url, {
-      headersTimeout: 5000,
-      bodyTimeout: 5000,
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(5000),
     });
-    const text = await response.body.text();
+    const text = await response.text();
     return text.includes("#EXTINF") || text.includes(".m3u8");
   } catch {
     return false;

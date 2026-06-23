@@ -18,36 +18,50 @@ export const attachHlsEventHandlers = ({
 }: AttachHlsEventHandlersOptions) => {
   let networkRetryCount = 0;
   let rebufferCount = 0;
+  let mediaRecoveryCount = 0;
+  const retryTimerIds: number[] = [];
 
-  hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+  const onManifestParsed = () => {
     videoElement.play().catch(() => {});
-  });
+  };
 
-  hlsInstance.on(Hls.Events.FRAG_BUFFERED, () => {
+  const onFragBuffered = () => {
     if (!startupStartTimeRef.current) return;
 
     const startupTimeSeconds =
       (performance.now() - startupStartTimeRef.current) / 1000;
     onStats?.({ startup: startupTimeSeconds.toFixed(2) });
     startupStartTimeRef.current = 0;
-  });
+  };
 
-  hlsInstance.on(Hls.Events.ERROR, (_event, errorData) => {
-    if (errorData.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
+  const onError = (_event: unknown, errorData: unknown) => {
+    const data = errorData as {
+      details?: string;
+      fatal?: boolean;
+      type?: string;
+    };
+
+    if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
       rebufferCount += 1;
       onStats?.({ rebuffers: rebufferCount });
     }
 
-    if (!errorData.fatal) return;
+    if (!data.fatal) return;
 
-    switch (errorData.type) {
+    switch (data.type) {
       case Hls.ErrorTypes.NETWORK_ERROR:
         networkRetryCount += 1;
 
         if (networkRetryCount <= 5) {
           const retryDelayMs = Math.min(1000 * 2 ** networkRetryCount, 8000);
-          setPlaybackError(`Network issue — retrying (${networkRetryCount})…`);
-          setTimeout(() => hlsInstance.startLoad(), retryDelayMs);
+          setPlaybackError(
+            `Network issue - retrying (${networkRetryCount})...`,
+          );
+          const retryTimerId = window.setTimeout(
+            () => hlsInstance.startLoad(),
+            retryDelayMs,
+          );
+          retryTimerIds.push(retryTimerId);
         } else {
           setPlaybackError("Source unreachable after retries");
           hlsInstance.stopLoad();
@@ -55,18 +69,45 @@ export const attachHlsEventHandlers = ({
         break;
 
       case Hls.ErrorTypes.MEDIA_ERROR:
-        setPlaybackError("Media error — recovering…");
-        hlsInstance.recoverMediaError();
+        mediaRecoveryCount += 1;
+
+        if (mediaRecoveryCount === 1) {
+          setPlaybackError("Media error - recovering...");
+          hlsInstance.recoverMediaError();
+        } else if (mediaRecoveryCount === 2) {
+          setPlaybackError("Media error - trying codec swap...");
+          hlsInstance.swapAudioCodec();
+          hlsInstance.recoverMediaError();
+        } else {
+          setPlaybackError("Media recovery exhausted");
+          hlsInstance.stopLoad();
+        }
         break;
 
       default:
         setPlaybackError("Fatal error");
         hlsInstance.stopLoad();
     }
-  });
+  };
 
-  hlsInstance.on(Hls.Events.FRAG_LOADED, () => {
+  const onFragLoaded = () => {
     networkRetryCount = 0;
+    mediaRecoveryCount = 0;
     setPlaybackError(null);
-  });
+  };
+
+  hlsInstance.on(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+  hlsInstance.on(Hls.Events.FRAG_BUFFERED, onFragBuffered);
+  hlsInstance.on(Hls.Events.ERROR, onError);
+  hlsInstance.on(Hls.Events.FRAG_LOADED, onFragLoaded);
+
+  return () => {
+    hlsInstance.off(Hls.Events.MANIFEST_PARSED, onManifestParsed);
+    hlsInstance.off(Hls.Events.FRAG_BUFFERED, onFragBuffered);
+    hlsInstance.off(Hls.Events.ERROR, onError);
+    hlsInstance.off(Hls.Events.FRAG_LOADED, onFragLoaded);
+    for (const retryTimerId of retryTimerIds) {
+      window.clearTimeout(retryTimerId);
+    }
+  };
 };

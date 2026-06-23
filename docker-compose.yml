@@ -1,0 +1,28 @@
+services:
+  backend:
+    build:
+      context: ./server
+      target: dev
+    working_dir: /app
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    environment:
+      PORT: 4000
+    ports:
+      - "${BACKEND_PORT:-4001}:4000"
+
+  frontend:
+    build:
+      context: ./client
+      target: dev
+    working_dir: /app
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    environment:
+      VITE_API_TARGET: http://backend:4000
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"

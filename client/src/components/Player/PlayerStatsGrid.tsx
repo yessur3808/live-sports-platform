@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import {
   Activity,
+  AlertTriangle,
   Clock3,
   Film,
   Gauge,
@@ -51,7 +52,18 @@ const getStatCards = (stats: PlayerStats): StatCardData[] => {
     {
       label: "Latency",
       icon: <Waves size={16} />,
-      value: stats.latency ? `${stats.latency}s` : "—",
+      value:
+        stats.latency === "live"
+          ? "Live"
+          : stats.latency
+            ? `${stats.latency}s`
+            : "—",
+    },
+    {
+      label: "Frame Rate",
+      icon: <Film size={16} />,
+      value:
+        typeof stats.frameRate === "number" ? `${stats.frameRate} fps` : "—",
     },
     {
       label: "Dropped",
@@ -60,7 +72,7 @@ const getStatCards = (stats: PlayerStats): StatCardData[] => {
     },
     {
       label: "Rebuffers",
-      icon: <Activity size={16} />,
+      icon: <AlertTriangle size={16} />,
       value: stats.rebuffers ?? 0,
     },
   ];
@@ -70,25 +82,49 @@ export const PlayerStatsGrid = ({ stats }: PlayerStatsGridProps) => {
   const statCards = getStatCards(stats);
 
   return (
-    <Grid container spacing={1.5}>
+    <Grid container spacing={2}>
       {statCards.map((statCard) => (
-        <Grid size={{ xs: 6, sm: 4, md: 3, lg: 2 }} key={statCard.label}>
-          <Card variant="outlined" sx={{ height: "100%" }}>
-            <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+        <Grid size={{ xs: 6, sm: 4, md: 4, lg: 3 }} key={statCard.label}>
+          <Card
+            variant="outlined"
+            sx={{
+              height: "100%",
+              borderRadius: "12px",
+              background:
+                "linear-gradient(165deg, rgba(14, 32, 43, 0.94) 0%, rgba(10, 23, 31, 0.82) 100%)",
+              boxShadow: "0 12px 24px rgba(0, 0, 0, 0.28)",
+            }}
+          >
+            <CardContent
+              sx={{ p: 2, "&:last-child": { pb: 2 }, minHeight: 104 }}
+            >
               <Box
                 sx={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 0.5,
+                  justifyContent: "center",
+                  gap: 0.75,
                   color: "text.secondary",
                   fontSize: 12,
-                  mb: 0.5,
+                  mb: 1,
+                  letterSpacing: 0.2,
+                  textAlign: "center",
                 }}
               >
                 {statCard.icon}
                 {statCard.label}
               </Box>
-              <Typography sx={{ fontSize: 18, fontWeight: 600 }}>
+
+              <Typography
+                sx={{
+                  fontSize: { xs: 19, md: 22 },
+                  fontWeight: 700,
+                  lineHeight: 1.15,
+                  fontVariantNumeric: "tabular-nums",
+                  letterSpacing: -0.2,
+                  textAlign: "center",
+                }}
+              >
                 {statCard.value}
               </Typography>
             </CardContent>

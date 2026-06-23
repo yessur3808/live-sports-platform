@@ -43,6 +43,20 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
     onStats?.({ rebuffers: 0, startup: undefined });
     setPlaybackError(null);
 
+    const emitStartupIfNeeded = () => {
+      if (!startupStartTimeRef.current) {
+        return;
+      }
+
+      const startupTimeSeconds =
+        (performance.now() - startupStartTimeRef.current) / 1000;
+      onStats?.({ startup: startupTimeSeconds.toFixed(2) });
+      startupStartTimeRef.current = 0;
+    };
+
+    videoElement.addEventListener("playing", emitStartupIfNeeded);
+    videoElement.addEventListener("loadeddata", emitStartupIfNeeded);
+
     if (hlsInstanceRef.current) {
       hlsInstanceRef.current.destroy();
       hlsInstanceRef.current = null;
@@ -57,6 +71,8 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
       };
       videoElement.addEventListener("waiting", onWaiting);
       return () => {
+        videoElement.removeEventListener("playing", emitStartupIfNeeded);
+        videoElement.removeEventListener("loadeddata", emitStartupIfNeeded);
         videoElement.removeEventListener("waiting", onWaiting);
         videoElement.pause();
         videoElement.removeAttribute("src");
@@ -69,11 +85,13 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
     const hlsInstance = new Hls({
       lowLatencyMode: true,
       enableWorker: true,
-      backBufferLength: 20,
-      maxBufferLength: 14,
-      maxMaxBufferLength: 24,
-      liveSyncDurationCount: 2,
-      liveMaxLatencyDurationCount: 6,
+      progressive: true,
+      testBandwidth: false,
+      backBufferLength: 12,
+      maxBufferLength: 8,
+      maxMaxBufferLength: 12,
+      liveSyncDuration: 1.8,
+      liveMaxLatencyDuration: 4,
       abrEwmaDefaultEstimate: 1_200_000,
       startLevel: -1,
       capLevelToPlayerSize: true,
@@ -82,7 +100,7 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
       levelLoadingMaxRetry: 4,
     });
     hlsInstanceRef.current = hlsInstance;
-    attachHlsEventHandlers({
+    const detachHlsEventHandlers = attachHlsEventHandlers({
       hlsInstance,
       videoElement,
       startupStartTimeRef,
@@ -95,6 +113,9 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
 
     return () => {
       try {
+        videoElement.removeEventListener("playing", emitStartupIfNeeded);
+        videoElement.removeEventListener("loadeddata", emitStartupIfNeeded);
+        detachHlsEventHandlers();
         hlsInstance.destroy();
         hlsInstanceRef.current = null;
         videoElement.pause();
@@ -122,9 +143,12 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
       sx={{
         position: "relative",
         width: "100%",
-        backgroundColor: "black",
-        borderRadius: 3,
+        background:
+          "linear-gradient(140deg, rgba(9, 24, 33, 0.95) 0%, rgba(8, 17, 23, 1) 100%)",
+        borderRadius: "12px",
         overflow: "hidden",
+        border: "1px solid rgba(15, 118, 110, 0.25)",
+        boxShadow: "0 20px 45px rgba(5, 18, 25, 0.35)",
       }}
     >
       <Box
@@ -144,7 +168,7 @@ export const Player = ({ channelId, onStats }: PlayerProps) => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.8)",
+            backgroundColor: "rgba(0, 0, 0, 0.72)",
           }}
         >
           <Typography variant="body2" color="error.light">

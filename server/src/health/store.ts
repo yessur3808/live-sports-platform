@@ -50,8 +50,6 @@ export const healthState = {
     }
 
     status.healthy = true;
-    status.failures = 0;
-    status.consecutiveSuccesses = 0;
     status.lastSeen = Date.now();
   },
   markFailure(id: string): void {

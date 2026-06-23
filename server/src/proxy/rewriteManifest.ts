@@ -8,12 +8,16 @@ const absolutize = (line: string, baseUrl: string): string => {
   }
 };
 
+const isPlaylistUrl = (url: string): boolean => /\.m3u8($|[?#])/i.test(url);
+
 export const rewriteManifest = (
   text: string,
   manifestUrl: string,
   channelId: string,
   origin: string,
 ): string => {
+  void origin;
+
   return text
     .split("\n")
     .map((rawLine) => {
@@ -22,7 +26,8 @@ export const rewriteManifest = (
         if (line.includes('URI="')) {
           return rawLine.replace(/URI="([^"]+)"/g, (_match, uri: string) => {
             const absoluteUrl = absolutize(uri, manifestUrl);
-            return `URI="${origin}/proxy/${channelId}/seg/${enc(absoluteUrl)}"`;
+            const route = isPlaylistUrl(absoluteUrl) ? "playlist" : "seg";
+            return `URI="/proxy/${channelId}/${route}/${enc(absoluteUrl)}"`;
           });
         }
 
@@ -30,8 +35,8 @@ export const rewriteManifest = (
       }
 
       const absoluteUrl = absolutize(line, manifestUrl);
-      const route = absoluteUrl.includes(".m3u8") ? "playlist" : "seg";
-      return `${origin}/proxy/${channelId}/${route}/${enc(absoluteUrl)}`;
+      const route = isPlaylistUrl(absoluteUrl) ? "playlist" : "seg";
+      return `/proxy/${channelId}/${route}/${enc(absoluteUrl)}`;
     })
     .join("\n");
 };
