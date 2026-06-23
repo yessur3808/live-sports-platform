@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "sh -c 'tsc -w --preserveWatchOutput & until [ -f dist/index.js ]; do sleep 0.2; done; node --watch dist/index.js'",
     "build": "tsc",
     "start": "node dist/index.js"
   },
