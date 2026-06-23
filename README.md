@@ -2,25 +2,44 @@
 
 Quality-first live-stream aggregator demo focused on low startup time, smooth channel switching, adaptive bitrate behavior, and graceful recovery when an upstream source degrades.
 
-## What This Project Delivers
+## Overview
 
-- Browser app that plays multiple live or live-style channels from one page.
-- Channel metadata includes the current event and next event, which are derived from a schedule feed rather than hardcoded in the UI.
-- At least two sports categories are present and switchable from the same UI:
-	- Football
-	- Basketball (m issing scheduling)
-    - Motor sports & F1
-    - Multti sports
-- Stream delivery runs through a Fastify HLS proxy with manifest rewriting, segment caching, and health monitoring with failover.
-- Player is tuned for live playback with hls.js metrics and recovery handling.
+This project provides a browser-based live sports experience powered by a React client and a Fastify server-side HLS proxy.
 
-## Notes
+### What it delivers
 
-- Architecture: React + Vite on the client, Fastify on the server, HLS proxying for manifests and segments, in-memory segment caching, and background health checks that can fail over to backup feeds.
-- Trade-offs: Currently prioritized simple deployment, fast channel switching, and playback resilience over owning ingest/transcoding, persistent storage, or sub-second latency.
-- Costs used: `$0` paid infrastructure or API spend for this demo; it relies on local runtime plus public/live-style upstream HLS sources.
-- Timezones: schedule timestamps are stored in UTC and rendered in the viewer’s selected timezone, defaulting to the browser locale with a manual override in the header.
-- Next steps: add live program metadata or EPG data, persist health history, move cache to a shared layer/CDN, and tighten observability around latency, startup, and failover events.
+- Multi-channel playback from a single UI.
+- Sports category switching (Football, Basketball, Motorsports/F1, and multi-sport feeds).
+- Dynamic event metadata (`currentEvent` and `nextEvent`) derived from schedule feeds.
+- Proxy-based stream delivery with manifest rewriting, segment caching, and source failover.
+- Live playback metrics and recovery handling via hls.js.
+
+### Key notes
+
+- Architecture: React + Vite client, Fastify server, HLS manifest/segment proxy, in-memory segment caching, and background health checks.
+- Timezone handling: schedule timestamps are stored in UTC and rendered in the viewer-selected timezone.
+- Cost for this demo: `$0` paid infrastructure/API spend.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Viewer[Browser Player\nReact + hls.js] -->|/proxy/:id/playlist.m3u8| Proxy[Fastify Proxy]
+    Proxy -->|manifest fetch| SourceA[Primary HLS Source]
+    Proxy -->|segment fetch + short cache| SourceB[Backup HLS Source]
+    Monitor[Health Monitor] -->|probe| SourceA
+    Monitor -->|switch on repeated failures| Proxy
+    Proxy --> Viewer
+```
+
+### Core components
+
+- `server/src/proxy/rewriteManifest.ts`: rewrites nested playlist and segment URLs so all media flows through proxy routes.
+- `server/src/proxy/handlers.ts`: adds upstream timeout handling, status checks, and cache headers.
+- `server/src/health/store.ts` + `server/src/health/monitor.ts`: tracks channel health, failover, and controlled failback.
+- `client/src/components/Player/index.tsx`: recreates hls.js on channel changes for reliable switching.
+- `client/src/components/Player/hlsEventHandlers.ts`: startup timing, retry/backoff, and rebuffer counting.
+- `client/src/components/Player/PlayerStatsGrid.tsx`: startup, bitrate, resolution, level, buffer, latency, dropped frames, and rebuffer metrics.
 
 ## Quick Start
 
@@ -31,32 +50,7 @@ cd client && npm install
 cd ../server && npm install
 ```
 
-### 2. Optional source overrides
-
-The app ships with runnable defaults. Set environment variables for the channels you want to override. The code supports primary/backup overrides per channel category.
-
-The current defaults are:
-
-- Football: a live sports feed with a backup sports feed.
-- Basketball: a live NBA-oriented feed with alternate sports backups.
-- F1: a dedicated F1 section with a Formula fallback.
-
-Additional basketball-friendly alternates are already wired in the codebase so you can swap them in without changing the UI or player logic.
-
-### 2b. Metadata model
-
-Each channel now carries:
-
-- `matchContext` for a short live description.
-- `currentEvent` for the active show/game block.
-- `nextEvent` for the upcoming block.
-- A `scheduleSourceUrl` that points to a JSON feed of events for that channel.
-
-The server fetches that feed on every `/channels` request, derives the current and next event from the latest data, and the client polls `/channels` periodically so the UI stays fresh without hardcoded schedule windows.
-
-The header includes a timezone selector so you can switch between local browser time, UTC, and a few common zones without changing the underlying schedule data.
-
-### 3. Run locally
+### 2. Run locally (recommended for development)
 
 Terminal A:
 
@@ -72,9 +66,14 @@ cd client
 npm run dev
 ```
 
-Open the Vite URL (typically `http://localhost:5173`).
+Then open `http://localhost:5173`.
 
-### 4. Run with Docker Compose
+Local API endpoints:
+
+- Channels: `http://localhost:4000/channels`
+- Health: `http://localhost:4000/health`
+
+### 3. Run with Docker Compose
 
 From the repository root:
 
@@ -84,7 +83,7 @@ docker compose up --build
 
 Then open:
 
-- Client: `http://localhost:5174`
+- Client: `http://localhost:5173`
 - Server health: `http://localhost:4001/health`
 
 To stop:
@@ -93,103 +92,95 @@ To stop:
 docker compose down
 ```
 
-## Demo Script (3 Minutes)
+## Configuration
 
-1. Open app and start Football channel. Show startup metric and bitrate/resolution changing.
-2. Switch to Basketball channel. Call out switch speed and stable playback.
-3. Click `Simulate source failure` to force failover.
+### Source overrides (optional)
+
+The app ships with runnable defaults. You can override channel source URLs with environment variables. The server supports primary/backup sources per channel category.
+
+Default intent:
+
+- Football: live sports feed + backup sports feed.
+- Basketball: NBA-oriented feed + alternate sports backups.
+- F1: dedicated Formula feed + fallback.
+
+Additional alternates are already wired in the codebase, so you can swap sources without changing UI/player logic.
+
+### Channel metadata model
+
+Each channel carries:
+
+- `matchContext`: short live description.
+- `currentEvent`: active game/show block.
+- `nextEvent`: upcoming block.
+- `scheduleSourceUrl`: JSON schedule feed URL.
+
+On each `/channels` request, the server refreshes schedule data and derives `currentEvent`/`nextEvent`. The client polls `/channels` to keep metadata fresh without hardcoded windows.
+
+### Timezone behavior
+
+The header includes a timezone selector (local browser time, UTC, and common zones). Stored schedule data remains UTC; only rendering changes.
+
+## Demo Script (3 minutes)
+
+1. Start on Football and show startup metric plus bitrate/resolution changes.
+2. Switch to Basketball and call out switch speed and playback stability.
+3. Trigger `Simulate source failure`.
 4. Show backup indicator in header/sidebar and continued playback.
-5. Open `http://localhost:4000/health` and show `usingBackup`, `failures`, and latency state.
+5. Open health endpoint and show `usingBackup`, `failures`, and latency state.
 
-## Architecture
+Use:
 
-```mermaid
-flowchart LR
-	Viewer[Browser Player\nReact + hls.js] -->|/proxy/:id/playlist.m3u8| Proxy[Fastify Proxy]
-	Proxy -->|manifest fetch| SourceA[Primary HLS Source]
-	Proxy -->|segment fetch + short cache| SourceB[Backup HLS Source]
-	Monitor[Health Monitor] -->|probe| SourceA
-	Monitor -->|switch on repeated failures| Proxy
-	Proxy --> Viewer
-```
+- Local run: `http://localhost:4000/health`
+- Docker run: `http://localhost:4001/health`
 
-### Core components
+## Stream Quality and Resilience Decisions
 
-- `server/src/proxy/rewriteManifest.ts`
-	- Rewrites nested playlist and segment URLs so all media flows through proxy routes.
-- `server/src/proxy/handlers.ts`
-	- Adds upstream timeout handling, status checks, and cache headers.
-- `server/src/health/store.ts` + `server/src/health/monitor.ts`
-	- Tracks channel health, failover to backup after repeated failures, and controlled failback.
-- `client/src/components/Player/index.tsx`
-	- Creates a fresh hls.js instance on channel changes to avoid stale state and improve switch reliability.
-- `client/src/components/Player/hlsEventHandlers.ts`
-	- Handles startup measurement, retry/backoff, and rebuffer counting.
-- `client/src/components/Player/PlayerStatsGrid.tsx`
-	- Shows startup, bitrate, resolution, level, buffer, latency, dropped frames, and rebuffers.
-
-## Stream Quality Decisions
-
-- Low-latency leaning hls.js settings (`lowLatencyMode`, tighter live sync window, bounded buffers).
-- Recovery-first strategy:
-	- exponential retry for transient network errors,
-	- media-error recovery,
-	- clear error state transitions.
-- Fast channel switching:
-	- explicit teardown/recreate of player pipeline per channel to avoid cross-channel residue.
-- Server-side resilience:
-	- periodic health probes,
-	- automatic backup failover,
-	- conservative primary failback only after consecutive successful checks.
+- Low-latency-leaning hls.js settings (`lowLatencyMode`, tighter live sync window, bounded buffers).
+- Recovery-first strategy with exponential retry, media-error recovery, and explicit error-state transitions.
+- Fast channel switching via full player teardown/recreate per channel.
+- Server-side failover with periodic probes, automatic backup switch, and conservative primary failback.
 
 ## Why This Stack
 
 ### Protocol choice
 
-HLS is the right trade-off for this project in my opinion because it is broadly supported in desktop browsers, simple to proxy, and stable under time pressure. LL-HLS would reduce latency further, but it adds origin and packaging complexity that is easy to get wrong in a short build. DASH is viable too, but native desktop browser support is less universal and the player stack would need much more tuning. WebRTC would deliver the lowest latency, but it is a higher complexity option and is not the best fit for a multi-channel aggregator where scale and reliability matter more than sub-second glass-to-glass delay.
+HLS is the practical trade-off for broad browser support, straightforward proxying, and reliable behavior under time pressure. LL-HLS can reduce latency further but adds origin/packaging complexity. DASH is viable but less universally supported in desktop browsers. WebRTC offers lower latency but significantly higher operational complexity for this aggregator use case.
 
-### Ingest and transcoding
+### Ingest/transcoding scope
 
-I intentionally avoided building a full ingest/transcode pipeline for this pass. ffmpeg plus a media server such as MediaMTX, nginx-rtmp, or OvenMediaEngine would be the next step if we owned the live sources ourselves and needed adaptive ladders from a custom feed. For this demo, external live HLS sources already provide the packaging and ABR ladder, so the fastest path to a working result is to focus on proxying, switching, and recovery.
+This version intentionally avoids a full ingest/transcode pipeline. External HLS sources already provide packaging and ABR ladders, allowing focus on switching and resilience.
 
-### Delivery
+### Delivery strategy
 
-The server proxies manifests and segments, rewrites URLs so the browser only talks to one origin, and caches segments briefly to reduce upstream churn. That keeps playback simple on the client side and creates a natural point to add CDN or shared cache later. At larger scale, I would move segment caching to a distributed cache or edge/CDN layer and keep the proxy stateless.
+The proxy rewrites stream URLs and briefly caches segments. This simplifies the browser path and creates a clean migration path to CDN/distributed caching later.
 
-### Player
+### Player strategy
 
-I chose hls.js because it gives explicit control over low-latency settings, ABR behavior, recovery hooks, and stream telemetry. The player tuning keeps buffers bounded, retries transient network issues, attempts media recovery, and recreates the HLS instance on channel switches to avoid stale state. That matters more here than a richer UI wrapper.
+hls.js provides direct control of ABR, low-latency tuning, retries, and telemetry, which are critical for smooth live playback and robust channel switching.
 
-### Resilience
+## Trade-offs
 
-If a source drops or stalls, the server health monitor marks failures, failover moves the channel to a backup source, and the player keeps retrying before surfacing a clear error. If the source changes resolution or the ABR ladder shifts, the player continues tracking the active level and current playback metrics rather than resetting the experience. The design goal is to degrade gracefully, recover automatically, and keep the viewer in playback instead of forcing manual refreshes.
-
-## Trade-offs Made Under Time Pressure
-
-- Prioritized playback smoothness and recovery over broad product features.
-- Chose HLS proxy + hls.js over adding ingest/transcoding stack to keep delivery fast and stable.
-- Used runnable live-style defaults and env-driven source swapping to reduce demo risk from volatile public feeds.
-- Kept storage/cache in-memory for simplicity; production would move to shared cache/CDN.
-
-## Costs
-
-- External API/service spend: `$0` for this version.
+- Prioritized playback smoothness and recovery over wider product features.
+- Chose HLS proxy + hls.js over ingest/transcoding complexity.
+- Used env-driven source swapping to reduce risk from volatile public feeds.
+- Kept caching/state in-memory for simplicity; production would use shared cache/CDN.
 
 ## Validation Checklist
 
-- Client build:
+Client build:
 
 ```bash
 cd client && npm run build
 ```
 
-- Server build:
+Server build:
 
 ```bash
 cd server && npm run build
 ```
 
-- Endpoint smoke tests:
+Endpoint smoke tests (local server):
 
 ```bash
 curl http://localhost:4000/channels
@@ -197,10 +188,17 @@ curl http://localhost:4000/health
 curl http://localhost:4000/proxy/<channel-id>/playlist.m3u8 | head
 ```
 
-## What I Would Do Next With More Time
+## Possible Future Enhancements
 
-- Add multi-variant source preflight and automatic source scoring before channel publish.
-- Implement optional LL-HLS path and latency budget telemetry (edge delay, join latency histograms).
-- Add manual quality selector with `Auto`/fixed level override.
-- Add per-channel alerting + persistent health history.
-- Add CDN layer and distributed cache for large concurrent viewer scale.
+These are realistic improvements based on the current implementation.
+
+- [ ] Improve schedule resilience: add request timeout/retry/circuit-breaker behavior for schedule sources and cache the last-known-good schedule so `/channels` remains stable during upstream outages.
+- [ ] Add configuration validation: validate channel IDs and environment-variable overrides at startup (and fail fast on invalid values) to prevent silent config drift.
+- [ ] Harden debug controls: gate `/debug/break/:id` behind an environment flag or auth guard so failure simulation is not exposed in non-dev environments.
+- [ ] Expand observability: add structured logs, request IDs, and metrics export (startup time, rebuffers, failovers, segment/cache hit rate, upstream error rate).
+- [ ] Persist health history: store health/failover timelines in Redis/Postgres for trend analysis and alerting instead of in-memory only state.
+- [ ] Upgrade caching architecture: move segment caching from process memory to shared cache/CDN for horizontal scaling and consistent cache hit rates.
+- [ ] Add source preflight and scoring: evaluate all candidate manifests before publish and auto-rank by availability, startup speed, and stability.
+- [ ] Add playback controls: provide a user-facing quality selector (`Auto` + fixed levels), optional latency mode toggle, and DVR/live-edge controls.
+- [ ] Broaden timezone and calendar support: add more timezone presets and optional locale-aware date formatting for schedule rendering.
+- [ ] Add test coverage and CI: include unit tests for schedule normalization and manifest rewriting, plus integration tests for proxy failover paths.
